@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Elite Study Tracker</title>
+    <style>
+        :root { --bg: #0f172a; --card: #1e293b; --text: #f8fafc; --accent: #3b82f6; --success: #10b981; --warning: #f59e0b; --danger: #ef4444; }
+        body { font-family: system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text); margin: 0; padding: 0; }
+        nav { background: var(--card); padding: 1rem; display: flex; justify-content: space-between; align-items: center; border-bottom: 1px solid #334155; flex-wrap: wrap; gap: 1rem; }
+        .nav-links { display: flex; gap: 1.5rem; flex-wrap: wrap; align-items: center; }
+        nav a { color: var(--text); text-decoration: none; font-weight: 600; font-size: 0.95rem; }
+        nav a:hover { color: var(--accent); }
+        .container { max-width: 1100px; margin: 1.5rem auto; padding: 0 1rem; }
+        .grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(320px, 1fr)); gap: 1.5rem; margin-bottom: 1.5rem; }
+        .card { background: var(--card); padding: 1.25rem; border-radius: 12px; border: 1px solid #334155; box-sizing: border-box; }
+        h1, h2, h3 { margin-top: 0; color: #fff; }
+        input, select, button, textarea { width: 100%; padding: 0.75rem; margin: 0.4rem 0 1rem 0; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: white; box-sizing: border-box; }
+        button { background: var(--accent); font-weight: bold; cursor: pointer; border: none; transition: opacity 0.2s; }
+        button:hover { opacity: 0.9; }
+        .streak-container { background: linear-gradient(135deg, #f97316, #ef4444); color: white; padding: 0.4rem 0.8rem; border-radius: 8px; font-weight: bold; display: flex; align-items: center; gap: 0.5rem; font-size: 0.9rem; }
+        
+        /* Native CSS Charts & Metrics Elements */
+        .bar-container { background: #0f172a; border-radius: 6px; padding: 0.6rem; margin-bottom: 0.6rem; }
+        .bar-label { display: flex; justify-content: space-between; font-size: 0.85rem; margin-bottom: 0.3rem; }
+        .bar-outer, .progress-outer { width: 100%; background: #334155; height: 10px; border-radius: 10px; overflow: hidden; }
+        .bar-inner { height: 100%; background: linear-gradient(90deg, #3b82f6, #60a5fa); border-radius: 10px; }
+        .progress-inner { height: 100%; background: linear-gradient(90deg, #10b981, #34d399); border-radius: 10px; }
+        
+        /* 7-Day History Chart Elements */
+        .timeline-graph { display: flex; justify-content: space-between; align-items: flex-end; height: 160px; padding: 10px; background: #0f172a; border-radius: 8px; border: 1px solid #334155; }
+        .timeline-col { display: flex; flex-direction: column; align-items: center; flex: 1; height: 100%; justify-content: flex-end; }
+        .timeline-bar { width: 60%; background: linear-gradient(180deg, #6366f1, #4f46e5); border-radius: 4px 4px 0 0; transition: height 0.4s ease; min-height: 2px; }
+        .timeline-lbl { font-size: 0.75rem; color: #94a3b8; margin-top: 4px; }
+        
+        .alert { background: #7c2d12; color: #fdba74; padding: 0.75rem; border-radius: 6px; border: 1px solid #9a3412; margin-bottom: 1rem; font-weight: 500; font-size: 0.9rem; }
+    </style>
+</head>
+<body>
+    <nav>
+        <div class="nav-links">
+            <a href="/">📊 Dashboard</a>
+            <a href="/subjects">📚 Syllabus</a>
+            <a href="/revisions">⏳ Revisions</a>
+            <a href="/timetable">📅 Daily Routine</a>
+            
+            {% if session.get('user_id') %}
+                <!-- LINK COMPONENT FOR UPDATING STUDENT CREDENTIALS -->
+                <a href="/settings" style="margin-left: 0.5rem; color: var(--text);">⚙️ Settings</a>
+                
+                <a href="/logout" style="color: var(--danger); font-weight: bold; margin-left: 0.5rem; background: rgba(239, 68, 68, 0.1); padding: 0.4rem 0.75rem; border-radius: 6px; border: 1px solid rgba(239, 68, 68, 0.2);">
+                    🔒 Sign Out ({{ session.get('username') }})
+                </a>
+            {% endif %}
+        </div>
+        {% block streak_widget %}{% endblock %}
+    </nav>
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, msg in messages %}
+                    <div class="alert">{{ msg }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        <!-- FIXED CORE INTERFACE HOOK PLACEHOLDER LAYERS -->
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>

@@ -1,0 +1,89 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Daily Routine Timetable Manager</h1>
+
+<div class="grid">
+    <!-- Manual Slot Creation Controller Card -->
+    <div class="card">
+        <h3>Add Routine Block Manually</h3>
+        <form action="/timetable" method="POST">
+            <input type="hidden" name="action" value="add_slot">
+            
+            <label for="routine_title">Activity / Task Description</label>
+            <input id="routine_title" type="text" name="activity_title" placeholder="e.g., Study Engineering Mechanics, Dinner Break" required>
+            
+            <div style="display: flex; gap: 1rem;">
+                <div style="flex: 1;">
+                    <label for="start_time_picker">Start Hour</label>
+                    <input id="start_time_picker" type="time" name="start_time" required style="display: block;">
+                </div>
+                <div style="flex: 1;">
+                    <label for="end_time_picker">End Hour</label>
+                    <input id="end_time_picker" type="time" name="end_time" required style="display: block;">
+                </div>
+            </div>
+            
+            <button type="submit" style="background: linear-gradient(135deg, #10b981, #059669); margin-top: 1rem;">
+                ➕ Insert Single Routine Slot
+            </button>
+        </form>
+    </div>
+
+    <!-- Global Schedule Reset Utility Card -->
+    <div class="card" style="border-left: 5px solid var(--danger); display: flex; flex-direction: column; justify-content: space-between;">
+        <div>
+            <h3>Reset Schedule</h3>
+            <p style="color: #94a3b8; font-size: 0.85rem; margin-top: -0.5rem;">
+                Wipe out your active routine settings here to design a new timetable strategy from scratch. This action will leave your logged study history and syllabus metrics safe.
+            </p>
+        </div>
+        <form action="/timetable" method="POST" onsubmit="return confirm('⚠️ Are you sure you want to completely erase your daily routine timetable configuration? This will clear your dashboard live HUD tracker!')">
+            <input type="hidden" name="action" value="clear_timetable">
+            <button type="submit" style="background: var(--danger);">
+                🗑️ Clear Entire Routine Timetable
+            </button>
+        </form>
+    </div>
+</div>
+
+<!-- NEW BULK TIMETABLE TEXT BOX IMPORT BLOCK -->
+<div class="grid" style="grid-template-columns: 1fr; margin-bottom: 2rem;">
+    <div class="card" style="border-left: 5px solid var(--warning);">
+        <h3>📅 Bulk Timetable Text Import (Paste Your Routine Table)</h3>
+        <p style="color: #94a3b8; font-size: 0.85rem; margin-top: -0.5rem; margin-bottom: 1rem;">
+            You can copy your spreadsheet rows or text tables directly and paste them below. The backend smart parser automatically isolates timestamps, filters out duration text columns, and sets up your schedule.
+        </p>
+        
+        <form action="/timetable" method="POST">
+            <input type="hidden" name="action" value="bulk_timetable_upload">
+            
+            <label for="bulk_timetable_textarea">Paste Daily Routine Table Block</label>
+            <textarea id="bulk_timetable_textarea" name="bulk_timetable_data" rows="8" placeholder="5:30–6:00 AM   30 min    Wake up, exercise, breakfast&#10;6:00–8:00 AM   2 hrs     Technical Subject (Theory)&#10;11:00–12:00 PM 1 hr      Mathematics" required style="width: 100%; padding: 0.75rem; border-radius: 6px; border: 1px solid #475569; background: #0f172a; color: white; font-family: monospace; box-sizing: border-box; margin-bottom: 1rem; resize: vertical;"></textarea>
+            
+            <button type="submit" style="background: linear-gradient(135deg, #f59e0b, #d97706);">🚀 Process & Import Bulk Daily Routine</button>
+        </form>
+    </div>
+</div>
+<h2>Your Structured Daily Routine Timeline</h2>
+<div class="grid" style="grid-template-columns: repeat(auto-fill, minmax(280px, 1fr));">
+    {% for slot in slots %}
+    <div class="card" style="border-top: 3px solid var(--accent); display: flex; flex-direction: column; justify-content: space-between; padding: 1rem 1.25rem;">
+        <div>
+            <!-- Visual Time Badge Token Container -->
+            <span style="background: rgba(59, 130, 246, 0.15); color: #60a5fa; font-size: 0.8rem; font-weight: bold; padding: 0.25rem 0.5rem; border-radius: 4px; display: inline-block; margin-bottom: 0.5rem;">
+                🕒 {{ slot.start_time_str }} - {{ slot.end_time_str }}
+            </span>
+            <h3 style="margin: 0; font-size: 1.15rem; line-height: 1.4; color: #fff;">{{ slot.activity_title }}</h3>
+        </div>
+        <small style="color: #64748b; font-size: 0.75rem; margin-top: 1rem; font-weight: 500; text-transform: uppercase; letter-spacing: 0.05em;">
+            🔁 Repeats Daily
+        </small>
+    </div>
+    {% else %}
+    <div class="card" style="grid-column: 1 / -1; text-align: center; color: #64748b; padding: 2.5rem;">
+        <span style="font-size: 2rem; display: block; margin-bottom: 0.5rem;">📅</span>
+        Your routine timetable is empty! Paste your study hours blocks using the entry forms above to light up your live dashboard HUD widget tracks.
+    </div>
+    {% endfor %}
+</div>
+{% endblock %}

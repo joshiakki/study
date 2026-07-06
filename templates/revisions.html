@@ -1,0 +1,70 @@
+{% extends 'base.html' %}
+{% block content %}
+<h1>Confidence-Adaptive Spaced Repetition</h1>
+
+<!-- Active Revisions Due Card Grid -->
+<div class="card" style="border-left: 5px solid var(--warning); margin-bottom: 2rem;">
+    <h2>⏳ Due For Revision Today</h2>
+    {% if due %}
+        <div style="overflow-x: auto;">
+            <table style="width: 100%; border-collapse: collapse; text-align: left; margin-top: 1rem; min-width: 500px;">
+                <thead>
+                    <tr style="border-bottom: 1px solid #334155; color: #94a3b8; font-size: 0.9rem;">
+                        <th style="padding: 0.75rem 0.5rem;">Subject</th>
+                        <th style="padding: 0.75rem 0.5rem;">Chapter</th>
+                        <th style="padding: 0.75rem 0.5rem;">Current Stage</th>
+                        <th style="text-align: right; padding: 0.75rem 1rem 0.75rem 0;">Mark Done with Confidence Feedback</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    {% for r in due %}
+                    <tr style="border-bottom: 1px solid #1e293b;">
+                        <td style="padding: 1rem 0.5rem;"><strong>{{ r.chapter.subject.name }}</strong></td>
+                        <td style="padding: 1rem 0.5rem; color: #cbd5e1;">{{ r.chapter.name }}</td>
+                        <td style="padding: 1rem 0.5rem;">
+                            <span style="background: #475569; padding: 0.25rem 0.5rem; border-radius: 4px; font-size: 0.8rem; font-weight: 500;">
+                                Day {{ r.interval_days }}
+                            </span>
+                        </td>
+                        <td style="text-align: right; padding-right: 0.5rem;">
+                            <!-- Performance feedback request engine maps to adaptive backend timing schedules -->
+                            <form action="/complete_revision/{{ r.id }}" method="POST" style="display: inline-flex; gap: 0.4rem; margin: 0; width: auto; flex-wrap: wrap; justify-content: flex-end;">
+                                <button name="quality" value="easy" style="width: auto; margin: 0; padding: 0.45rem 0.75rem; background: var(--success); font-size: 0.8rem; border-radius: 4px;">
+                                    Easy (+20d)
+                                </button>
+                                <button name="quality" value="medium" style="width: auto; margin: 0; padding: 0.45rem 0.75rem; background: var(--accent); font-size: 0.8rem; border-radius: 4px;">
+                                    Medium (+7d)
+                                </button>
+                                <button name="quality" value="hard" style="width: auto; margin: 0; padding: 0.45rem 0.75rem; background: var(--danger); font-size: 0.8rem; border-radius: 4px;">
+                                    Hard (+3d)
+                                </button>
+                            </form>
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+    {% else %}
+        <p style="color: var(--success); padding: 1rem 0; font-weight: 500; margin: 0;">
+            🎉 All caught up for today! Your retention tracking looks solid.
+        </p>
+    {% endif %}
+</div>
+
+<!-- Future Planned Memory Pipeline Metrics Card -->
+<div class="card">
+    <h2>📅 Upcoming Spaced Repetition Pipeline</h2>
+    <ul style="padding-left: 1rem; line-height: 1.8; margin-bottom: 0;">
+        {% for r in upcoming %}
+            <li style="margin-bottom: 0.5rem; color: #cbd5e1;">
+                <strong style="color: var(--accent);">{{ r.due_date.strftime('%d-%b') }}</strong> — 
+                <strong>{{ r.chapter.subject.name }}</strong> : <em>{{ r.chapter.name }}</em> 
+                <span style="color: #64748b; font-size: 0.85rem;">[Stage: Day {{ r.interval_days }}]</span>
+            </li>
+        {% else %}
+            <p style="color: #64748b; font-style: italic; margin: 0;">No future items scheduled inside memory trackers.</p>
+        {% endfor %}
+    </ul>
+</div>
+{% endblock %}

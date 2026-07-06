@@ -1,0 +1,459 @@
+{% extends 'base.html' %}
+
+{% block streak_widget %}
+<div class="streak-container">
+    🔥 Study Streak: <span>{{ streak }} Days</span>
+</div>
+{% endblock %}
+
+{% block content %}
+<!-- Universal Multi-Device Script Engine with Active Form Deactivation -->
+<script>
+    let running = false;
+    let savedTime = 0; 
+    let tInterval;
+    let baseTime = 0;
+    let serverTimerActiveGlobal = false;
+
+    function showManual() {
+        // Prevent opening the manual pane if a timer is running anywhere on the network
+        if (serverTimerActiveGlobal) {
+            alert("⚠️ Input Deactivated: A live stopwatch is currently running on another device. Stop the timer to unlock manual logging!");
+            return;
+        }
+        document.getElementById('manual-log-section').style.display = 'block';
+        document.getElementById('live-timer-section').style.display = 'none';
+        document.getElementById('toggle-manual-btn').style.background = 'var(--accent)';
+        document.getElementById('toggle-manual-btn').style.border = 'none';
+        document.getElementById('toggle-live-btn').style.background = 'var(--card)';
+        document.getElementById('toggle-live-btn').style.border = '1px solid #475569';
+    }
+    
+    function showLive() {
+        document.getElementById('manual-log-section').style.display = 'none';
+        document.getElementById('live-timer-section').style.display = 'block';
+        document.getElementById('toggle-manual-btn').style.background = 'var(--card)';
+        document.getElementById('toggle-manual-btn').style.border = '1px solid #475569';
+        document.getElementById('toggle-live-btn').style.background = 'var(--accent)';
+        document.getElementById('toggle-live-btn').style.border = 'none';
+    }
+
+    function syncSelectedChapter() {
+        const val = document.getElementById('global_chapter_select').value;
+        document.getElementById('manual_hidden_chap_id').value = val;
+        document.getElementById('live_chap_id').value = val;
+    }
+
+    function syncLiveCompletion() {
+        const val = document.getElementById('live_comp_select').value;
+        document.getElementById('live_is_completed').value = val;
+    }
+
+    function validateManualSubmission() {
+        if (serverTimerActiveGlobal) {
+            alert("⚠️ Action Rejected: A stopwatch session is currently running. Clear the live timer first!");
+            return false;
+        }
+        if (!document.getElementById('manual_hidden_chap_id').value) {
+            alert("Please pick a Subject & Chapter from the dropdown list at the top first!");
+            return false;
+        }
+        return true;
+    }
+
+    // Long-Poll synchronization ticker with dynamic interface deactivation handlers
+    async function syncTimerStateWithDatabase() {
+        try {
+            const res = await fetch('/api/get_timer_state');
+            const state = await res.json();
+            
+            const manualBtn = document.getElementById('toggle-manual-btn');
+            const lockBanner = document.getElementById('manual-lock-banner');
+            
+            if (state.chapter_id && state.running) {
+                serverTimerActiveGlobal = true;
+                
+                // 1. Force visual deactivation styling on the manual controls
+                manualBtn.style.opacity = '0.4';
+                manualBtn.style.cursor = 'not-allowed';
+                manualBtn.title = "Deactivated: Live timer is running";
+                if (lockBanner) lockBanner.style.display = 'block';
+                
+                // 2. Automatically sync drop-down target elements
+                document.getElementById('global_chapter_select').value = state.chapter_id;
+                document.getElementById('live_comp_select').value = state.is_completed;
+                syncSelectedChapter();
+                syncLiveCompletion();
+                
+                // 3. Force dashboard view onto the active stopwatch tab
+                showLive();
+                
+                savedTime = state.elapsed_ms;
+                if (!running) {
+                    baseTime = new Date().getTime() - savedTime;
+                    tInterval = setInterval(updateTime, 1000);
+                    running = true;
+                }
+                document.getElementById('start-timer-btn').style.display = 'none';
+                document.getElementById('pause-timer-btn').style.display = 'inline-block';
+                
+            } else {
+                // Restore and unlock manual logs if no running timer is found in the database
+                serverTimerActiveGlobal = false;
+                manualBtn.style.opacity = '1';
+                manualBtn.style.cursor = 'pointer';
+                manualBtn.title = "";
+                if (lockBanner) lockBanner.style.display = 'none';
+                
+                if (state.chapter_id) {
+                    // Handled if timer is explicitly paused but not completely logged yet
+                    savedTime = state.elapsed_ms;
+                    if (running) {
+                        clearInterval(tInterval);
+                        running = false;
+                    }
+                    renderTimeDisplay(savedTime);
+                    document.getElementById('start-timer-btn').style.display = 'inline-block';
+                    document.getElementById('pause-timer-btn').style.display = 'none';
+                } else {
+                    // Complete reset baseline state
+                    if (running) {
+                        clearInterval(tInterval);
+                        running = false;
+                    }
+                    savedTime = 0;
+                    renderTimeDisplay(0);
+                    document.getElementById('start-timer-btn').style.display = 'inline-block';
+                    document.getElementById('pause-timer-btn').style.display = 'none';
+                }
+            }
+        } catch (err) {
+            console.error("Sync loop error:", err);
+        }
+    }
+
+    window.addEventListener('DOMContentLoaded', () => {
+        syncTimerStateWithDatabase();
+        // Constant 3-second database check interval loop
+        setInterval(syncTimerStateWithDatabase, 3000);
+    });
+
+    async function startTimer() {
+        const chapId = document.getElementById('global_chapter_select').value;
+        if (!chapId) {
+            alert("Please pick a target Subject & Chapter from the dropdown list before starting!");
+            return;
+        }
+        const isComp = document.getElementById('live_comp_select').value;
+
+        const res = await fetch('/api/start_timer', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ chapter_id: chapId, is_completed: isComp })
+        });
+        if (res.ok) syncTimerStateWithDatabase();
+    }
+    
+    async function pauseTimer() {
+        const res = await fetch('/api/pause_timer', { method: 'POST' });
+        if (res.ok) syncTimerStateWithDatabase();
+    }
+    
+    function updateTime() {
+        savedTime = new Date().getTime() - baseTime;
+        renderTimeDisplay(savedTime);
+    }
+
+    function renderTimeDisplay(ms) {
+        let hours = Math.floor((ms % (1000 * 60 * 60 * 24)) / (1000 * 60 * 60));
+        let minutes = Math.floor((ms % (1000 * 60 * 60)) / (1000 * 60));
+        let seconds = Math.floor((ms % (1000 * 60)) / 1000);
+        document.getElementById('timer-display').innerHTML = 
+            (hours < 10 ? "0" + hours : hours) + ":" + 
+            (minutes < 10 ? "0" + minutes : minutes) + ":" + 
+            (seconds < 10 ? "0" + seconds : seconds);
+    }
+    
+    async function endTimer() {
+        if (savedTime === 0) { alert("Timer wasn't running!"); return; }
+        clearInterval(tInterval);
+        
+        let finalMinutes = Math.max(1, Math.round(savedTime / 60000));
+        document.getElementById('live_duration').value = finalMinutes;
+        
+        await fetch('/api/clear_timer_state', { method: 'POST' });
+        document.getElementById('live-timer-form').submit();
+    }
+</script>
+<!-- SYSTEM ROUTINE SYNC HUD MODULE -->
+<div class="card" style="border-left: 5px solid var(--warning); background: linear-gradient(135deg, #1e293b, #0f172a); margin-bottom: 1.5rem; display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 1rem; padding: 1rem 1.5rem;">
+    <div>
+        <small style="color: var(--warning); text-transform: uppercase; font-weight: bold; letter-spacing: 0.05em; font-size: 0.75rem; display: block; margin-bottom: 0.25rem;">⚡ Current Scheduled Activity</small>
+        <h2 style="margin: 0; font-size: 1.5rem; color: #fff;">{{ current_routine.title }}</h2>
+        <span style="color: #94a3b8; font-size: 0.85rem; font-weight: 500; display: block; margin-top: 0.25rem;">🕒 Time Block: {{ current_routine.time }}</span>
+    </div>
+    <a href="/timetable" style="text-decoration: none; font-size: 0.8rem; background: #334155; color: #cbd5e1; padding: 0.5rem 0.75rem; border-radius: 6px; font-weight: bold; border: 1px solid #475569;">
+        Modify Timetable
+    </a>
+</div>
+
+<!-- Global Performance Metrics Displays -->
+<div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 1rem; flex-wrap: wrap; gap: 1rem;">
+    <h2 style="margin: 0;">Global Course Summary Track</h2>
+    <a href="/trigger_email" style="text-decoration: none; background: #6366f1; color: white; padding: 0.6rem 1.2rem; border-radius: 6px; font-weight: bold; font-size: 0.85rem; text-align: center; border: 1px solid #818cf8; transition: opacity 0.2s;">
+        📧 Email Me Today's Task Agenda
+    </a>
+</div>
+
+<div class="grid" style="grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); margin-bottom: 2rem;">
+    <!-- Course Progress Bar Card -->
+    <div class="card" style="border-top: 4px solid var(--success);">
+        <span style="color: #94a3b8; font-size: 0.85rem; font-weight: bold; text-transform: uppercase;">Total Course Covered</span>
+        <h1 style="font-size: 2.25rem; margin: 0.25rem 0;">{{ course_completion_pct }}%</h1>
+        <div class="progress-outer"><div class="progress-inner" style="--w: {{ course_completion_pct }}%; width: var(--w);"></div></div>
+        <div style="font-size: 0.8rem; color: #cbd5e1; margin-top: 0.5rem;">
+            📚 Leftover Subjects to Finish: <strong style="color: var(--danger);">{{ subjects_leftover_count }} / {{ total_subjects_count }}</strong>
+        </div>
+    </div>
+
+    <!-- Revision Process Bar Card -->
+    <div class="card" style="border-top: 4px solid var(--accent);">
+        <span style="color: #94a3b8; font-size: 0.85rem; font-weight: bold; text-transform: uppercase;">Revision Pipeline Completion</span>
+        <h1 style="font-size: 2.25rem; margin: 0.25rem 0;">{{ revision_completion_pct }}%</h1>
+        <div class="progress-outer"><div class="progress-inner" style="--w: {{ revision_completion_pct }}%; width: var(--w); background: linear-gradient(90deg, var(--accent), #60a5fa);"></div></div>
+        <div style="font-size: 0.8rem; color: #cbd5e1; margin-top: 0.5rem;">
+            ⏳ Total Leftover Reviews Pending: <strong style="color: var(--warning);">{{ pending_revisions_leftover }} / {{ total_revisions_logged }}</strong>
+        </div>
+    </div>
+</div>
+
+<h1>Dashboard Control</h1>
+
+<div class="grid">
+    <div class="card">
+        <!-- NEW DYNAMIC LIVE INTERFACE LOCKOUT BANNER ARTIFACT -->
+        <div id="manual-lock-banner" style="display: none; background: rgba(239, 68, 68, 0.15); border: 1px solid var(--danger); color: #fca5a5; padding: 0.75rem; border-radius: 6px; margin-bottom: 1rem; font-size: 0.85rem; font-weight: 500; text-align: center;">
+            🔒 Manual entry is completely deactivated because a live study session is running on an active system node. Stop the stopwatch to unlock.
+        </div>
+        <label for="global_chapter_select" style="font-weight: bold; color: #fff; display: block; margin-bottom: 0.25rem;">Target Chapter to Track</label>
+        <select id="global_chapter_select" onchange="syncSelectedChapter()" required style="border: 1px solid var(--accent); background: #0f172a; margin-bottom: 1.25rem;">
+            <option value="" disabled selected>-- Choose a Subject & Chapter --</option>
+            {% for sub in subjects %}
+                <optgroup label="{{ sub.name }}">
+                    {% for chap in sub.chapters %}
+                        <option value="{{ chap.id }}">{{ chap.name }}</option>
+                    {% endfor %}
+                </optgroup>
+            {% endfor %}
+        </select>
+
+        <div style="display:flex; justify-content:space-between; margin-bottom:1rem; border-top: 1px solid #334155; padding-top: 1rem;">
+            <button id="toggle-manual-btn" style="margin:0; width:48%; background:var(--accent);" onclick="showManual()">Manual Log</button>
+            <button id="toggle-live-btn" style="margin:0; width:48%; background:var(--card); border:1px solid #475569;" onclick="showLive()">Live Stop-Watch</button>
+        </div>
+
+        <!-- Manual Form Pane -->
+        <div id="manual-log-section">
+            <form action="/log_study" method="POST" onsubmit="return validateManualSubmission()">
+                <input type="hidden" id="manual_hidden_chap_id" name="chapter_id">
+
+                <label for="dur_input">Duration (Minutes)</label>
+                <input id="dur_input" type="number" name="duration" min="1" max="1440" placeholder="e.g., 45" required>
+                
+                <label for="date_input">Date</label>
+                <input id="date_input" type="date" name="date" value="{{ today_str }}" required>
+                
+                <label for="comp_select">Is Chapter Completed?</label>
+                <select id="comp_select" name="is_completed" required>
+                    <option value="no" selected>❌ No, still ongoing</option>
+                    <option value="yes">✅ Yes, mark finished</option>
+                </select>
+                <button type="submit">Submit Manual Hours</button>
+            </form>
+        </div>
+        <!-- Live Timer Pane -->
+        <div id="live-timer-section" style="display:none; text-align:center; padding:0.5rem 0;">
+            <div id="timer-display" style="font-size:3rem; font-weight:bold; font-family:monospace; margin-bottom:1rem; color:#fff;">00:00:00</div>
+            
+            <div style="text-align: left; margin-bottom: 1rem;">
+                <label for="live_comp_select" style="font-weight: bold; color: #fff; font-size: 0.9rem;">Is Chapter Completed?</label>
+                <select id="live_comp_select" onchange="syncLiveCompletion()" style="background: #0f172a; border: 1px solid #475569;">
+                    <option value="no" selected>❌ No, still ongoing</option>
+                    <option value="yes">✅ Yes, mark finished</option>
+                </select>
+            </div>
+
+            <div style="display:flex; gap:0.5rem;">
+                <button id="start-timer-btn" style="background:var(--success);" onclick="startTimer()">Start</button>
+                <button id="pause-timer-btn" style="background:var(--warning); display:none;" onclick="pauseTimer()">Pause</button>
+                <button id="end-timer-btn" style="background:var(--danger);" onclick="endTimer()">Stop & Log</button>
+            </div>
+            
+            <form id="live-timer-form" action="/log_study" method="POST" style="display:none;">
+                <input type="hidden" id="live_chap_id" name="chapter_id">
+                <input type="hidden" id="live_duration" name="duration">
+                <input type="hidden" name="date" value="{{ today_str }}">
+                <input type="hidden" id="live_is_completed" name="is_completed" value="no">
+            </form>
+        </div>
+    </div>
+
+    <!-- Multi-Mode Time Interval Graph Widget -->
+    <div class="card" style="display: flex; flex-direction: column; justify-content: space-between;">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem;">
+            <h3 style="margin: 0;">Study Timeline History</h3>
+            <div style="display: flex; gap: 0.25rem;">
+                <button id="filter-daily" class="time-filter-btn" style="width: auto; margin: 0; padding: 0.35rem 0.6rem; font-size: 0.75rem; background: var(--card); border: 1px solid #475569;" onclick="updateTimelineView('daily')">Daily</button>
+                <button id="filter-weekly" class="time-filter-btn" style="width: auto; margin: 0; padding: 0.35rem 0.6rem; font-size: 0.75rem; background: var(--accent); border: none;" onclick="updateTimelineView('weekly')">Weekly</button>
+                <button id="filter-monthly" class="time-filter-btn" style="width: auto; margin: 0; padding: 0.35rem 0.6rem; font-size: 0.75rem; background: var(--card); border: 1px solid #475569;" onclick="updateTimelineView('monthly')">Monthly</button>
+            </div>
+        </div>
+        
+        <div class="timeline-graph" id="dynamic-timeline-graph" style="overflow-x: auto; gap: 0.25rem;">
+            {% for item in weekly_data %}
+                <div class="timeline-col" style="cursor: pointer;" onclick="loadDayDetails('{{ item.date_str }}')">
+                    <span style="font-size:0.7rem; color:#cbd5e1; margin-bottom:2px;">{{ item.mins }}m</span>
+                    <div class="timeline-bar" style="--h: {{ item.height_pct }}%; height: var(--h);"></div>
+                    <div class="timeline-lbl">{{ item.day_name }}</div>
+                </div>
+            {% endfor %}
+        </div>
+    </div>
+</div>
+
+<!-- INTERACTIVE BREAKDOWN MONITOR EXPANSION AREA -->
+<div class="grid" style="grid-template-columns: 1fr; margin-bottom: 1.5rem;">
+    <div class="card" id="timeline-details-widget">
+        <h3 id="details-title" style="margin-bottom: 1rem;">🔍 Click any timeline chart bar to view historical day logs</h3>
+        <div id="dynamic-details-content">
+            <p style="color: #64748b; font-style: italic; text-align: center; margin: 1rem 0;">Detailed charts breakdown tracker will load here instantly showing subjects, chapters, durations, and revision confidence levels.</p>
+        </div>
+    </div>
+</div>
+
+<div class="grid">
+    <div class="card">
+        <h3>Subject Time Allotments</h3>
+        {% for item in time_list %}
+            <div class="bar-container">
+                <div class="bar-label"><strong>{{ item.subject }}</strong><span>{{ item.minutes }} mins</span></div>
+                <div class="bar-outer"><div class="bar-inner" style="--w: {{ item.pct }}%; width: var(--w);"></div></div>
+            </div>
+        {% else %}
+            <p style="color:#64748b; text-align:center; padding-top:1rem;">No hours logged yet.</p>
+        {% endfor %}
+    </div>
+    <div class="card" style="display:flex; align-items:center; gap:1rem;">
+        <div style="background:white; padding:5px; border-radius:8px; display:inline-block; height:130px; width:130px;">
+            <img src="data:image/png;base64,{{ qr_b64 }}" alt="Connect QR" style="width:100%; height:100%;">
+        </div>
+        <div>
+            <h3 style="margin-bottom:0.25rem;">Mobile Direct Link</h3>
+            <p style="font-size:0.8rem; color:#94a3b8; margin:0 0 0.5rem 0;">Scan to open your dashboard instantly from any local device connected to your router.</p>
+            <code style="background:#0f172a; padding:0.2rem 0.4rem; border-radius:4px; font-size:0.8rem; color:var(--accent);">{{ local_url }}</code>
+        </div>
+    </div>
+</div>
+
+<h2>Syllabus Completion Track</h2>
+<div class="grid">
+    {% for item in progress_list %}
+    <div class="card" style="position: relative;">
+        <!-- DYNAMIC DEADLINE AND REMAINING COUNTDOWN LABELS -->
+        <div style="font-size: 0.75rem; font-weight: bold; position: absolute; top: 12px; right: 12px; padding: 0.2rem 0.5rem; border-radius: 4px; 
+            {% if item.days_left is not none and item.days_left < 0 %} background: #7f1d1d; color: #fca5a5;
+            {% elif item.days_left is not none and item.days_left <= 3 %} background: #7c2d12; color: #fdba74;
+            {% else %} background: #1e293b; color: #94a3b8; {% endif %}">
+            📅 Due: {{ item.deadline }} 
+            {% if item.days_left is not none %}
+                ({% if item.days_left < 0 %} Overdue by {{ item.days_left | abs }}d
+                 {% elif item.days_left == 0 %} Due Today
+                 {% else %}{{ item.days_left }}d remaining{% endif %})
+            {% endif %}
+        </div>
+
+        <div style="display:flex; justify-content:space-between; margin-top: 1.5rem; margin-bottom:0.5rem;">
+            <h3 style="margin:0;">{{ item.subject_name }}</h3>
+            <strong style="color:var(--success);">{{ item.pct }}%</strong>
+        </div>
+        <div class="progress-outer" style="margin-bottom:0.75rem;">
+            <div class="progress-inner" style="--w: {{ item.pct }}%; width: var(--w);"></div>
+        </div>
+        <div style="display:flex; justify-content:space-between; font-size:0.8rem; color:#94a3b8;">
+            <span>📋 Chapters: <strong>{{ item.total }}</strong></span>
+            <span>✅ Done: <strong>{{ item.completed }}</strong></span>
+            <span>❌ Leftover: <strong>{{ item.leftover }}</strong></span>
+        </div>
+    </div>
+    {% endfor %}
+</div>
+
+<!-- Async API Chart Handler Injection -->
+<script>
+    async function updateTimelineView(mode) {
+        document.querySelectorAll('.time-filter-btn').forEach(btn => {
+            btn.style.background = 'var(--card)';
+            btn.style.border = '1px solid #475569';
+        });
+        document.getElementById('filter-' + mode).style.background = 'var(--accent)';
+        document.getElementById('filter-' + mode).style.border = 'none';
+
+        try {
+            const response = await fetch('/api/timeline/' + mode);
+            const data = await response.json();
+            
+            let graphHTML = '';
+            data.chart_bars.forEach(bar => {
+                graphHTML += `
+                    <div class="timeline-col" style="cursor: pointer;" onclick="loadDayDetails('${bar.date_str}')">
+                        <span style="font-size:0.7rem; color:#cbd5e1; margin-bottom:2px;">${bar.mins}m</span>
+                        <div class="timeline-bar" style="--h: ${bar.height_pct}%; height: var(--h);"></div>
+                        <div class="timeline-lbl">${bar.label}</div>
+                    </div>
+                `;
+            });
+            document.getElementById('dynamic-timeline-graph').innerHTML = graphHTML;
+        } catch (error) {
+            console.error("Error updates:", error);
+        }
+    }
+
+    async function loadDayDetails(dateStr) {
+        try {
+            const response = await fetch('/api/timeline_details/' + dateStr);
+            const data = await response.json();
+            
+            document.getElementById('details-title').innerText = "Logs for " + data.date;
+            
+            let detailsHTML = '';
+            if (data.sessions && data.sessions.length > 0) {
+                data.sessions.forEach(s => {
+                    let badgeColor = 'var(--accent)';
+                    if (s.rating === 'HARD') badgeColor = 'var(--danger)';
+                    if (s.rating === 'MEDIUM') badgeColor = 'var(--warning)';
+                    if (s.rating === 'EASY') badgeColor = 'var(--success)';
+
+                    detailsHTML += `
+                        <div style="background:#0f172a; padding:0.75rem; border-radius:6px; margin-bottom:0.5rem; border:1px solid #334155; display:flex; justify-content:space-between; align-items:center;">
+                            <div style="text-align: left;">
+                                <small style="color:#94a3b8; font-weight:bold; text-transform:uppercase; display:block; font-size:0.65rem;">${s.type}</small>
+                                <strong style="color:#fff; font-size:0.95rem;">${s.subject}</strong>
+                                <span style="color:#cbd5e1; font-size:0.9rem; display:block;">${s.chapter}</span>
+                            </div>
+                            <div style="text-align:right;">
+                                <span style="font-weight:bold; color:var(--accent); display:block; font-size:0.9rem;">${s.duration}</span>
+                                ${s.rating !== 'N/A' ? `<span style="background:${badgeColor}; font-size:0.7rem; padding:0.1rem 0.4rem; border-radius:4px; font-weight:bold; color:#000;">${s.rating}</span>` : ''}
+                            </div>
+                        </div>
+                    `;
+                });
+            } else {
+                detailsHTML = '<p style="color:#64748b; font-style:italic; text-align:center; margin:1rem 0;">No sessions recorded or revisions checked off on this date.</p>';
+            }
+            document.getElementById('dynamic-details-content').innerHTML = detailsHTML;
+        } catch (error) {
+            console.error("Error details:", error);
+        }
+    }
+</script>
+{% endblock %}
