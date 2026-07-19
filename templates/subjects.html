@@ -68,14 +68,63 @@
     <div class="card" style="position: relative; display: flex; flex-direction: column; justify-content: space-between;">
         <div>
             <!-- Header Group containing Subject Title and Delete Actions -->
-            <div style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
-                <h3 style="margin: 0; padding-right: 2rem;">📁 {{ sub.name }}</h3>
-                <a href="/delete_subject/{{ sub.id }}" 
-                   onclick="return confirm('⚠️ Warning: Deleting this subject will erase ALL of its nested chapters, study logs, and scheduled revisions forever. Proceed?')"
-                   style="color: var(--danger); text-decoration: none; font-size: 0.85rem; font-weight: bold; background: rgba(239, 68, 68, 0.15); padding: 0.25rem 0.5rem; border-radius: 4px;">
-                   Delete Subject
-                </a>
-            </div>
+            <div id="subject-display-{{ sub.id }}" style="display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 0.5rem;">
+
+    <h3 style="margin:0; padding-right:2rem;">
+        📁 {{ sub.name }}
+    </h3>
+
+    <div style="display:flex; gap:8px;">
+
+        <button type="button"
+                onclick="activateSubjectEdit('{{ sub.id }}','{{ sub.name }}','{{ sub.deadline.strftime('%Y-%m-%d') if sub.deadline else '' }}')"
+                style="width:auto; padding:4px 10px; font-size:0.8rem; background:#475569;">
+            Edit
+        </button>
+
+        <a href="/delete_subject/{{ sub.id }}"
+           onclick="return confirm('⚠️ Warning: Deleting this subject will erase ALL chapters forever. Proceed?')"
+           style="color:var(--danger); text-decoration:none; font-size:0.85rem; font-weight:bold;">
+            Delete
+        </a>
+
+    </div>
+
+</div>
+<div id="subject-edit-{{ sub.id }}" style="display:none; margin-bottom:12px;">
+
+    <form action="/subjects" method="POST">
+
+        <input type="hidden" name="action" value="edit_subject">
+
+        <input type="hidden" name="subject_id" value="{{ sub.id }}">
+
+        <label>Subject Name</label>
+
+        <input
+            type="text"
+            id="subject-name-{{ sub.id }}"
+            name="subject_name"
+            required>
+
+        <label>Deadline</label>
+
+        <input
+            type="date"
+            id="subject-deadline-{{ sub.id }}"
+            name="subject_deadline">
+
+        <button type="submit">Save</button>
+
+        <button
+            type="button"
+            onclick="cancelSubjectEdit('{{ sub.id }}')">
+            Cancel
+        </button>
+
+    </form>
+
+</div>
             
             <p style="font-size:0.8rem; color:var(--warning); margin-top:-0.25rem; margin-bottom:1rem; font-weight: 500;">
                 Target Deadline: {{ sub.deadline.strftime('%d-%b-%Y') if sub.deadline else "None Set" }}
@@ -139,6 +188,23 @@
     function cancelInlineEdit(id) {
         document.getElementById('display-row-' + id).style.display = 'flex';
         document.getElementById('edit-row-' + id).style.display = 'none';
+    }
+    function activateSubjectEdit(id, name, deadline) {
+
+        document.getElementById("subject-display-" + id).style.display = "none";
+
+        document.getElementById("subject-edit-" + id).style.display = "block";
+
+        document.getElementById("subject-name-" + id).value = name;
+
+        document.getElementById("subject-deadline-" + id).value = deadline;
+    }
+
+    function cancelSubjectEdit(id) {
+
+        document.getElementById("subject-display-" + id).style.display = "flex";
+
+        document.getElementById("subject-edit-" + id).style.display = "none";
     }
 </script>
 {% endblock %}

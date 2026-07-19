@@ -797,6 +797,24 @@ def manage_subjects():
                 else:
                     db.session.add(Subject(name=name, deadline=deadline_date, user_id=uid))
                     db.session.commit()
+        
+        elif action == 'edit_subject':
+            sub_id = request.form.get('subject_id')
+            new_name = request.form.get('subject_name', '').strip()
+            new_deadline_str = request.form.get('subject_deadline')
+            new_deadline_date = datetime.strptime(new_deadline_str, '%Y-%m-%d').date() if new_deadline_str else None
+            
+            if sub_id and new_name:
+                sub = Subject.query.get_or_404(sub_id)
+                if sub.user_id != uid:
+                    return "Unauthorized", 403
+                existing_subject = Subject.query.filter(Subject.name == new_name, Subject.user_id == uid, Subject.id != sub.id).first()
+                if existing_subject:
+                    flash(f"⚠️ Error: Another subject named '{new_name}' already exists in your curriculum profile!", "warning")
+                else:
+                    sub.name = new_name
+                    sub.deadline = new_deadline_date
+                    db.session.commit()
                     
         elif action == 'add_chapter':
             sub_id = request.form.get('subject_id')
